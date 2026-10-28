@@ -1,75 +1,25 @@
-from quantlab.market_data_manager import (
-    update_sample_market_data
-)
+"""Refresh the current 33-stock market-data sample."""
+
+from quantlab.market_data_manager import update_sample_market_data
 
 
-print("\nAUTOMATED MARKET DATA UPDATE")
+def main() -> None:
+    folder, universe_source, audit = update_sample_market_data(per_sector=3)
+    successful = audit["Status"].eq("OK")
+
+    if len(audit) != 33 or not audit["Ticker"].is_unique:
+        raise ValueError("Expected 33 unique stocks")
+    if audit["Sector"].nunique() != 11:
+        raise ValueError("Expected three names in each of 11 sectors")
+
+    print(f"Universe source: {universe_source}")
+    print(f"Market data: {folder}")
+    print(f"Successful downloads: {successful.sum()} / {len(audit)}")
+
+    if not successful.all():
+        print(audit.loc[~successful, ["Ticker", "Status", "Reason"]].to_string(index=False))
+        raise RuntimeError("Some price histories could not be updated")
 
 
-# Validate downloader coverage across the 11-sector pilot.
-
-folder, universe_source, audit = (
-    update_sample_market_data(
-        per_sector=3
-    )
-)
-
-
-print("\nSOURCE UNIVERSE")
-print(universe_source)
-
-print("\nDOWNLOAD RESULTS")
-
-print(
-    audit[[
-        "Ticker",
-        "Sector",
-        "Status",
-        "Sessions",
-        "Last_Date"
-    ]].to_string(index=False)
-)
-
-print("\nSTATUS SUMMARY")
-print(audit["Status"].value_counts().to_string())
-
-print("\nDATA STORAGE")
-print(folder)
-
-if (audit["Status"] == "OK").all():
-    print("\nPASS: All sampled prices updated")
-else:
-    print("\nWARNING: Some stocks need investigation")
-
-
-    print("\nEXPANDED MARKET COVERAGE AUDIT")
-
-    expected_stocks = 33
-
-    actual_stocks = len(audit)
-
-    successful = (
-            audit["Status"] == "OK"
-    ).sum()
-
-    failed = actual_stocks - successful
-
-    print(f"Expected stocks: {expected_stocks}")
-    print(f"Attempted stocks: {actual_stocks}")
-    print(f"Successful downloads: {successful}")
-    print(f"Unsuccessful or stale: {failed}")
-
-    assert actual_stocks == expected_stocks
-    assert audit["Ticker"].is_unique
-    assert audit["Sector"].nunique() == 11
-
-    if successful == expected_stocks:
-        print("\nPASS: Expanded price coverage verified")
-    else:
-        print("\nWARNING: Investigate these tickers:")
-        print(
-            audit.loc[
-                audit["Status"] != "OK",
-                ["Ticker", "Status", "Reason"]
-            ].to_string(index=False)
-        )
+if __name__ == "__main__":
+    main()
