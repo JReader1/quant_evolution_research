@@ -3,24 +3,21 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quant-order-flow-lab"
+name = "quant-evolution-research"
 version = "0.1.0"
-description = "Quantitative order flow research"
+description = "Evolutionary research on sector-balanced equity momentum strategies"
 requires-python = ">=3.11"
-
 dependencies = [
-    "pandas",
     "numpy",
-    "matplotlib",
+    "pandas",
+    "yfinance",
     "scipy",
-    "scikit-learn"
+    "scikit-learn",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "jupyter"
-]
+dev = ["pytest", "jupyter"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
