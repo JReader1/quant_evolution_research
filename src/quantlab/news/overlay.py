@@ -17,7 +17,7 @@ from quantlab.evolution.arena import HOLD_SESSIONS, Genome, HistoricalArena
 
 @dataclass(frozen=True)
 class OverlayRule:
-    # Precommitted research rule; not fitted to the currently available 2022 data.
+    # Fixed rule for the 2022 pilot; parameters are not tuned on those returns.
     warmup_sessions: int = 20
     threshold_z: float = 1.0
     stressed_risk_multiplier: float = 0.75
@@ -60,15 +60,13 @@ def prepare_news_schedule(aligned: pd.DataFrame, rule: OverlayRule) -> pd.DataFr
     observed = data.loc[full, 'news_material_conflict_share']
     if not observed.between(0, 1).all():
         raise ValueError('Invalid conflict share outside [0,1]')
-    # Preserve missing windows in the chronological rolling history.
+    # Missing windows remain missing, never zero-filled.
     rates = data['news_material_conflict_share']
     previous = rates.shift(1)
     mu = previous.rolling(rule.warmup_sessions, min_periods=rule.warmup_sessions).mean()
     sigma = previous.rolling(rule.warmup_sessions, min_periods=rule.warmup_sessions).std(ddof=0)
     z = (rates - mu) / sigma.replace(0, np.nan)
-    # With a constant prior window the Z-score is undefined; retain this fact
-    # in the report. A strictly higher value is still a deterministic shock.
-    # Incomplete dates leave rolling stats missing rather than implying zero.
+    # Constant prior windows make z-scores undefined.
     ready = full & mu.notna() & sigma.notna()
     shock = (rates > mu) & (rates > (mu + rule.threshold_z * sigma))
     data['prior_mean'] = mu
@@ -97,8 +95,7 @@ def determine_experiment_bounds(arena: HistoricalArena, schedule: pd.DataFrame,
         raise ValueError('No full 21-session holding interval after news warmup')
     last_exit = signals[-1] + HOLD_SESSIONS + 1
     valid = set(schedule.loc[schedule['rule_ready'], 'signal_date'].dt.strftime('%Y-%m-%d'))
-    # Signal at close t can change risk only at the open t+1.
-    # The last open is final liquidation, not a new risk decision.
+    # A close-based news signal first trades at the next open.
     required = [calendar[i].strftime('%Y-%m-%d') for i in range(i_start, last_exit - 1)]
     missing = [d for d in required if d not in valid]
     if missing:
@@ -148,7 +145,7 @@ def evaluate_news_overlay(arena: HistoricalArena, genome: Genome, start: str, en
     extra_risk_rebalances = 0
     risk_state_transitions = 0
 
-    # Iterate all opens where risk could be executed, not just monthly opens.
+    # Risk can change daily even though stock selection changes monthly.
     for open_i in range(i_start + 1, last_exit):
         signal_i = open_i - 1
         signal_day = calendar[signal_i].strftime('%Y-%m-%d')
@@ -172,15 +169,13 @@ def evaluate_news_overlay(arena: HistoricalArena, genome: Genome, start: str, en
             target_weights = np.zeros_like(shares)
             target_weights[held] = 1.0 / len(held)
         elif changed:
-            # A news shock changes gross exposure, NOT the 11 chosen names.
-            # Keep drifted stock proportions; do not rebalance selection daily.
+            # Change gross exposure without reranking the sector holdings.
             current_dollars = shares * opening_prices
             invested_now = float(current_dollars.sum())
             target_weights = np.zeros_like(shares)
             if invested_now > 0:
                 target_weights = current_dollars / invested_now
             else:
-                # Possible after a prior signal reduced exposure to 0%.
                 target_weights[held] = 1.0 / len(held)
             extra_risk_rebalances += 1
         else:
@@ -192,7 +187,7 @@ def evaluate_news_overlay(arena: HistoricalArena, genome: Genome, start: str, en
             def turnover(invested: float) -> float:
                 return float(np.abs(target_weights * invested - current_dollars).sum())
 
-            # Invest no more than target exposure and leave enough for fees.
+            # Reserve enough cash to pay the rebalance fee.
             low, high = 0.0, equity_before * target_risk
             for _ in range(55):
                 mid = (low + high) / 2
@@ -226,7 +221,6 @@ def evaluate_news_overlay(arena: HistoricalArena, genome: Genome, start: str, en
         daily_equity.append(cash + float(np.dot(shares, opening_prices)))
         prior_multiplier = multiplier
 
-    # Mandatory final liquidation at scheduled exit open, with costs.
     liquidation = float(np.dot(shares, arena.opens[last_exit]))
     exit_fee = liquidation * arena.cost_rate
     cash += liquidation - exit_fee
