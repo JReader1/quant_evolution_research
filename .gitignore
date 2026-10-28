@@ -1,0 +1,56 @@
+
+# Python virtual environments and temporary files
+.venv/
+.venv313/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE settings
+.idea/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*credentials*.json
+
+# Downloaded research data
+data/raw/
+data/raw_2018_2025/
+data/processed/
+data/reference/
+
+# Generated experiment outputs
+reports/
+
+# Archived files
+*.zip
+
+# Python environments
+.venv/
+.venv313/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# PyCharm
+.idea/
+
+# Local credentials
+.env
+.env.*
+!.env.example
+
+# Downloaded market and news data
+data/
+src/quantlab/data/
+
+# Generated experiment results
+reports/
+
+# Generated Python package metadata
+*.egg-info/
+
+# Temporary notebook files
+.ipynb_checkpoints/
