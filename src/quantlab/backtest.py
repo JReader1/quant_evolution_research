@@ -10,11 +10,9 @@ def prepare_trade_data(prices, predictions):
 
     grouped = prices.groupby("Ticker")
 
-    # Signal is known after today's close.
-    # Enter at the next trading day's open.
+    # Form signals at the close; orders execute at the following open.
     prices["entry_open"] = grouped["Open"].shift(-1)
 
-    # Exit five trading sessions after entry.
     prices["exit_open"] = grouped["Open"].shift(-6)
 
     prices["trade_return"] = (
@@ -32,7 +30,6 @@ def prepare_trade_data(prices, predictions):
         validate="one_to_one"
     )
 
-    # Rebalance once every five trading days.
     calendar = (
         prices.loc[
             (prices["Date"] >= "2022-01-01")
@@ -60,7 +57,7 @@ def evaluate_portfolios(
 
     for date, day in panel.groupby("Date"):
 
-        # Require our full 33-stock universe.
+        # Reject incomplete panels instead of silently changing the universe.
         if day["Ticker"].nunique() != 33:
             continue
 
@@ -85,12 +82,10 @@ def evaluate_portfolios(
 
             for _, sector in day.groupby("Sector"):
 
-                # Buy highest-ranked stock in sector.
                 long_stock = sector.nlargest(
                     1, signal
                 )
 
-                # Short lowest-ranked stock in sector.
                 short_stock = sector.nsmallest(
                     1, signal
                 )
@@ -103,14 +98,13 @@ def evaluate_portfolios(
                     short_stock["trade_return"].iloc[0]
                 )
 
-            # 50% long, 50% short.
+            # Equal long and short gross exposures.
             gross_return = 0.5 * (
                 sum(long_returns) / 11
                 - sum(short_returns) / 11
             )
 
-            # Approximate opening and closing costs
-            # on 100% gross portfolio notional.
+            # Approximate round-trip costs on gross notional.
             trading_cost = 2 * cost_bps / 10000
 
             net_return = gross_return - trading_cost
@@ -160,13 +154,11 @@ def measure_position_persistence(panel, signal):
 
         if previous_weights is not None:
 
-            # Count positions with unchanged tickers and sides
             retained = sum(
                 previous_weights.get(ticker) == weight
                 for ticker, weight in weights.items()
             )
 
-            # Measure changes in desired portfolio weights
             all_tickers = (
                 set(weights) | set(previous_weights)
             )
@@ -198,7 +190,6 @@ def backtest_with_shares(
     return_daily: bool = False
 ):
 
-    # Opening prices for every stock and trading date
     opens = prices.pivot(
         index="Date",
         columns="Ticker",
@@ -215,7 +206,6 @@ def backtest_with_shares(
         for i, date in enumerate(calendar)
     }
 
-    # Build portfolio instructions before trading
     plans = []
 
     for date, day in panel.groupby("Date", sort=True):
@@ -263,15 +253,12 @@ def backtest_with_shares(
     if not plans:
         raise ValueError("No valid portfolio periods")
 
-    # Start with $1 of simulated portfolio equity
     cash = 1.0
     shares = {}
     cost_rate = cost_bps / 10000
 
-    # Store completed holding periods
     records = []
 
-    # Store daily portfolio values
     daily_records = []
 
     for k, plan in enumerate(plans):
@@ -284,7 +271,6 @@ def backtest_with_shares(
 
         entry_prices = opens.iloc[entry_i]
 
-        # Cash plus current marked-to-market holdings
         starting_equity = cash + sum(
             quantity * entry_prices[ticker]
             for ticker, quantity in shares.items()
@@ -293,7 +279,6 @@ def backtest_with_shares(
         if starting_equity <= 0:
             raise ValueError("Portfolio equity exhausted")
 
-        # Target share quantities at today's opening prices
         target_shares = {
             ticker: weight * starting_equity / entry_prices[ticker]
             for ticker, weight in plan["weights"].items()
@@ -301,7 +286,6 @@ def backtest_with_shares(
 
         all_tickers = set(shares) | set(target_shares)
 
-        # Shares bought or sold to reach new targets
         trade_values = {
             ticker: (
                 target_shares.get(ticker, 0)
@@ -320,8 +304,7 @@ def backtest_with_shares(
         shares = target_shares
 
 
-        # Record portfolio equity at each opening price
-        # up to, but not including, the exit date.
+        # Mark equity at the open until the scheduled exit.
         for day_i in range(entry_i, exit_i):
 
             day_prices = opens.iloc[day_i]
@@ -336,7 +319,6 @@ def backtest_with_shares(
                 "Equity": day_equity
             })
 
-        # Mark portfolio at the planned exit open
         exit_prices = opens.iloc[exit_i]
 
         exit_equity = cash + sum(
@@ -344,8 +326,7 @@ def backtest_with_shares(
             for ticker, quantity in shares.items()
         )
 
-        # If next entry is later, close positions now.
-        # Also liquidate at the end of the entire test.
+        # Liquidate across gaps between holding periods.
         close_positions = (
             k == len(plans) - 1
             or plans[k + 1]["entry_i"] > exit_i
@@ -374,14 +355,12 @@ def backtest_with_shares(
             exit_equity = cash
 
 
-            # Record the portfolio after liquidation
             daily_records.append({
                 "Date": calendar[exit_i],
                 "Equity": cash
             })
 
-            # If there's a gap before the next trade,
-            # the portfolio stays in cash.
+            # Portfolio remains in cash while no positions are held.
             if k + 1 < len(plans):
 
                 next_entry_i = plans[k + 1]["entry_i"]
@@ -413,13 +392,11 @@ def backtest_with_shares(
         })
 
 
-    # Return both datasets for daily risk analysis
     if return_daily:
         return (
             pd.DataFrame(records),
             pd.DataFrame(daily_records)
         )
 
-    # Default behavior for existing experiments
     return pd.DataFrame(records)
 
