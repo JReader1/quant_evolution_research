@@ -13,10 +13,10 @@ FEATURES = [
     "volume_ratio_20d"
 ]
 
-# Predict the return from next open to exit open
+# Target return includes the intended next-open entry and exit.
 TARGET = "future_open_return_5d"
 
-# The date when the target return becomes known
+# Never train on targets whose exit has not occurred.
 OUTCOME_DATE = "execution_outcome_date"
 
 
@@ -37,12 +37,10 @@ def prepare_model_data(df: pd.DataFrame) -> pd.DataFrame:
 
     data = df.sort_values(["Ticker", "Date"]).copy()
 
-    # Average future trade return across stocks each day
     universe_average = (
         data.groupby("Date")[TARGET].transform("mean")
     )
 
-    # Predict stock performance relative to peers
     data["relative_target"] = (
         data[TARGET] - universe_average
     )
@@ -66,13 +64,12 @@ def train_first_model(df: pd.DataFrame):
 
     data = prepare_model_data(df)
 
-    # Training labels must finish before 2022
+    # Training outcomes must be fully observed before validation starts.
     train = data[
         (data["Date"] < "2022-01-01")
         & (data[OUTCOME_DATE] < "2022-01-01")
     ].copy()
 
-    # Evaluate using completed 2022–2024 outcomes
     validation = data[
         (data["Date"] >= "2022-01-01")
         & (data["Date"] < "2025-01-01")
@@ -106,13 +103,12 @@ def walk_forward_model(df: pd.DataFrame) -> pd.DataFrame:
         start = pd.Timestamp(f"{year}-01-01")
         end = pd.Timestamp(f"{year + 1}-01-01")
 
-        # Include only training outcomes already known
+        # Rolling training windows exclude unsettled targets.
         train = data[
             (data["Date"] < start)
             & (data[OUTCOME_DATE] < start)
         ].copy()
 
-        # Keep test outcomes inside their evaluation year
         test = data[
             (data["Date"] >= start)
             & (data["Date"] < end)
