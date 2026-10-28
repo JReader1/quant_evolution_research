@@ -9,9 +9,8 @@ import statistics
 
 from quantlab.evolution.arena import BASELINE, Genome, HistoricalArena
 
-# Both search folds are reused by evolution, so these are NOT out-of-sample
-# after the tournament has chosen its winner. 2023-24 is a once-per-run
-# secondary historical audit, not untouched real-world forward evidence.
+# The search folds are in-sample after candidate selection.
+# The 2023-24 audit is descriptive, not an untouched holdout.
 SEARCH_FOLDS = [('2019-01-01', '2021-01-01'), ('2021-01-01', '2023-01-01')]
 AUDIT_FOLD = ('2023-01-01', '2025-01-01')
 ALL_LOOKBACKS = (5, 10, 20, 40, 63, 126)
@@ -62,8 +61,7 @@ def fitness(arena: HistoricalArena, genome: Genome,
             baseline_returns: list,
             bench_returns: list) -> tuple[float, list]:
 
-    # Compare candidates against the original momentum
-    # strategy at the same level of equity exposure.
+    # Use a five-day momentum control with identical target exposure.
     matched = Genome(
         lookback=BASELINE.lookback,
         skip=BASELINE.skip,
@@ -83,7 +81,6 @@ def fitness(arena: HistoricalArena, genome: Genome,
             matched, start, end
         )
 
-        # All returns are net of the arena's trading costs.
         vs_market = 100 * (
             metric["return"] - benchmark["return"]
         )
@@ -92,11 +89,10 @@ def fitness(arena: HistoricalArena, genome: Genome,
             metric["return"] - matched_result["return"]
         )
 
-        # Judge a strategy by its weaker comparison.
+        # Require strength against both controls.
         edge = min(vs_market, vs_matched)
 
-        # Additional drawdown compared with the
-        # exposure-matched baseline.
+        # Penalize excess drawdown relative to the matched control.
         extra_drawdown_pp = 100 * max(
             0.0,
             matched_result["max_drawdown"]
@@ -120,13 +116,11 @@ def fitness(arena: HistoricalArena, genome: Genome,
         for r in records
     ]
 
-    # Penalize unstable performance across historical folds.
     instability = (
         0.5 * statistics.pstdev(edges)
     )
 
-    # A strong period should not completely conceal
-    # an unsuccessful period.
+    # Penalize the weakest fold as well as overall dispersion.
     losing_fold = (
         0.5 * max(0.0, -min(edges))
     )
@@ -138,7 +132,6 @@ def fitness(arena: HistoricalArena, genome: Genome,
         )
     )
 
-    # Prefer simpler models when evidence is similar.
     complexity = (
         0.25 * bool(genome.volatility_penalty)
         + 0.25 * bool(genome.skip)
@@ -214,7 +207,7 @@ def run_championship(root: Path, *, population: int = 16, generations: int = 5,
     audit_baseline = arena.evaluate(BASELINE, *AUDIT_FOLD)
     audit_benchmark = arena.evaluate(None, *AUDIT_FOLD)
 
-    # HISTORICAL QUALIFICATION CHECK
+    # Audit is reported separately from the search fitness.
 
     search_hurdles_passed = all(
         fold["excess_vs_33stock_pp"] > 0
@@ -222,8 +215,7 @@ def run_championship(root: Path, *, population: int = 16, generations: int = 5,
         for fold in best_folds
     )
 
-    # Evaluate the secondary period against a baseline
-    # that uses the same equity exposure as the winner.
+    # Match risk exposure in the secondary audit.
     audit_matched = arena.evaluate(
         Genome(
             BASELINE.lookback,
