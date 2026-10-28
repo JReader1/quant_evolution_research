@@ -54,7 +54,7 @@ def main() -> int:
     print(f'Backfill range: {start} through {start + timedelta(days=args.days - 1)}')
     print('Completed campaign reports are reused; otherwise archived days may be downloaded.')
 
-    # Reuse an already-verified completed campaign. No new reports or re-downloads.
+    # Reuse archived campaigns when the source manifest still matches.
     campaign_dir = None
     campaign = None
     folder_root = root / 'reports' / 'news_campaigns'
@@ -104,7 +104,6 @@ def main() -> int:
     old_champion.validate()
 
     now = datetime.now(timezone.utc)
-    # Single replaceable pilot report rather than creating a new directory each run.
     output = root / 'reports' / 'news_experiments' / 'latest'
     output.mkdir(parents=True, exist_ok=True)
 
@@ -117,7 +116,6 @@ def main() -> int:
         ('previous_search_champion', old_champion)
     ]:
 
-        # Model 1: Original price-only strategy
         price_only = arena.evaluate(
             genome,
             start_date,
@@ -125,10 +123,8 @@ def main() -> int:
             record_trades=True
         )
 
-        # Model 2: Target 75% stocks, 25% cash
-        # regardless of news.
-        # Convert absolute target exposure into the
-        # multiplier expected by the overlay engine.
+        # A constant-risk control distinguishes timing from reduced exposure.
+        # The overlay accepts an exposure multiplier relative to the genome.
         if genome.risk_fraction < 0.75:
             raise ValueError(
                 "Constant 75% control requires "
@@ -149,7 +145,6 @@ def main() -> int:
             record_trades=True
         )
 
-        # Model 3: Exposure responds to news
         news_overlay = evaluate_news_overlay(
             arena,
             genome,
@@ -159,7 +154,6 @@ def main() -> int:
             record_trades=True
         )
 
-        # Save results for all three models
         for setting, result in [
             ('price_only', price_only),
             ('constant_75pct', constant_75),
