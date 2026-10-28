@@ -6,8 +6,7 @@ from quantlab.market_data_manager import (
 print("\nAUTOMATED MARKET DATA UPDATE")
 
 
-# Collect three stocks from each of our 11 sectors.
-# This is a downloader test, not a trading selection.
+# Validate downloader coverage across the 11-sector pilot.
 
 folder, universe_source, audit = (
     update_sample_market_data(
@@ -42,7 +41,6 @@ if (audit["Status"] == "OK").all():
 else:
     print("\nWARNING: Some stocks need investigation")
 
-    # STEP 48: Validate expanded sample coverage
 
     print("\nEXPANDED MARKET COVERAGE AUDIT")
 
