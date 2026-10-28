@@ -16,10 +16,9 @@ def calculate_five_day_features(df: pd.DataFrame) -> pd.DataFrame:
 
     close = df.groupby("Ticker")["Close"]
 
-    # Information from the preceding five trading days
     df["momentum_5d"] = close.pct_change(periods=5)
 
-    # The outcome over the next five trading days
+    # Future outcomes are labels, never features at signal time.
     df["future_return_5d"] = (
         close.shift(-5) / df["Close"] - 1
     )
@@ -33,7 +32,6 @@ def calculate_additional_features(df: pd.DataFrame) -> pd.DataFrame:
 
     grouped = df.groupby("Ticker")
 
-    # 1. Twenty-day price momentum
     df["momentum_20d"] = (
         grouped["Close"].pct_change(
             periods=20,
@@ -41,7 +39,6 @@ def calculate_additional_features(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # 2. Twenty-day historical volatility
     df["volatility_20d"] = (
         grouped["daily_return"].transform(
             lambda x: x.rolling(
@@ -51,7 +48,6 @@ def calculate_additional_features(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # 3. Volume relative to its twenty-day average
     average_volume = (
         grouped["Volume"].transform(
             lambda x: x.rolling(
@@ -78,18 +74,16 @@ def calculate_execution_targets(
 
     grouped = df.groupby("Ticker")
 
-    # Entry: next trading day's opening price
+    # Targets assume next-open entry, five-session holding, and exit-open pricing.
     entry_open = grouped["Open"].shift(-1)
 
-    # Exit: five trading sessions after entry
     exit_open = grouped["Open"].shift(-6)
 
-    # Return from actual intended holding period
     df["future_open_return_5d"] = (
         exit_open / entry_open - 1
     )
 
-    # Date when that return becomes observable
+    # Label availability controls which rows may enter training.
     df["execution_outcome_date"] = (
         grouped["Date"].shift(-6)
     )
