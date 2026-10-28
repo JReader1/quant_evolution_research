@@ -1,13 +1,10 @@
-"""Offline, survivorship-biased research arena based on the user's cached equities.
+"""Historical portfolio simulator for a fixed 33-stock equity basket.
 
-Inputs and pricing intentionally match the original long-only experiment:
-- signal computed using adjusted CLOSE available after signal-day close
-- purchases/rebalances at NEXT SESSION's adjusted OPEN
-- 21-session signal/rebalance spacing; final sell at exit opening
-- fee charged per traded dollar, and rebalances are self-financing
-- full selected basket on each rebalance, no implicit substitution for missing data
+Signals use adjusted closing prices. Portfolios trade at the following open,
+rebalance every 21 sessions, and pay fees on the amount traded.
 
-This is NOT a point-in-time S&P 500 or an independently held-out experiment.
+The stocks were selected retrospectively; these results are not a point-in-time
+S&P 500 backtest.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,7 +23,7 @@ EXPECTED_TICKERS = sorted(SECTOR_BY_TICKER)
 
 @dataclass(frozen=True, order=True)
 class Genome:
-    """Constrained, auditable strategy description; no generated Python execution."""
+    """Momentum parameters and target equity exposure."""
     lookback: int = 5
     skip: int = 0
     volatility_penalty: float = 0.0
