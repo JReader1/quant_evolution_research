@@ -85,8 +85,8 @@ class HistoricalArena:
             raise ValueError("Unexpected panel shape")
         self.calendar = opens.index
         self.tickers = list(opens.columns)
-        self.opens = opens.to_numpy(dtype=float)
-        self.closes = closes.to_numpy(dtype=float)
+        self.opens = opens.to_numpy(dtype=float, copy=True)
+        self.closes = closes.to_numpy(dtype=float, copy=True)
         self.sector_indices = [
             np.array([self.tickers.index(t) for t in self.tickers
                       if SECTOR_BY_TICKER[t] == sector], dtype=int)
