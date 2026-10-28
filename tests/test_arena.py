@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from quantlab.evolution import frozen_2026, macro_regimes, market_analogs
-from quantlab.evolution.arena import BASELINE, Genome, HistoricalArena
+from quantlab.evolution.arena import BASELINE, HOLD_SESSIONS, Genome, HistoricalArena
 from quantlab.universe import SECTOR_BY_TICKER
 
 
@@ -65,3 +65,26 @@ def test_experiment_modules_are_importable():
     assert callable(market_analogs.preview_market_analogs)
     assert callable(macro_regimes.compare_macro_analogs)
     assert callable(frozen_2026.evaluate_frozen_2026)
+
+
+def test_transaction_costs_reduce_net_returns(arena):
+    start, end = "2019-04-01", "2019-07-31"
+    no_cost = arena.evaluate(BASELINE, start, end)
+    with_cost = HistoricalArena(arena.root, cost_bps=5.0).evaluate(BASELINE, start, end)
+    assert with_cost["total_fees"] > 0
+    assert with_cost["return"] < no_cost["return"]
+
+
+def test_full_risk_schedule_matches_original_evaluation(arena):
+    start, end = "2019-04-01", "2019-07-31"
+    first = int(arena.calendar.searchsorted(pd.Timestamp(start)))
+    last = int(arena.calendar.searchsorted(pd.Timestamp(end)))
+    schedule = {
+        arena.calendar[i]: 1.0
+        for i in range(first, last - HOLD_SESSIONS - 1, HOLD_SESSIONS)
+    }
+    original = arena.evaluate(BASELINE, start, end)
+    scheduled = arena.evaluate(BASELINE, start, end, risk_schedule=schedule)
+    assert scheduled["return"] == pytest.approx(original["return"], abs=1e-12)
+    assert scheduled["max_drawdown"] == pytest.approx(original["max_drawdown"], abs=1e-12)
+    assert scheduled["total_fees"] == pytest.approx(original["total_fees"], abs=1e-12)
