@@ -80,8 +80,7 @@ def main() -> int:
         migrated = move_legacy_cache(root)
         print("Reused existing legacy news archives:", migrated)
         folder, features = collect(root, start, args.days, offline=args.offline)
-        # The model only sees a FULL calendar window ending at least two days
-        # before the simulated trading date. If it is incomplete: no feature.
+        # Use complete event windows ending at least two days before a trading decision.
         first_candidate = start + timedelta(days=8)
         last_candidate = start + timedelta(days=args.days + 3)
         trading_dates = pd.bdate_range(first_candidate, last_candidate)
@@ -92,7 +91,7 @@ def main() -> int:
         n_incomplete = int((aligned["news_coverage"] == "INCOMPLETE").sum())
         if n_complete < 1:
             raise ValueError("No full seven-calendar-day news windows; collect at least 7 days")
-        # Ensure already established time-gating parameters cannot silently change.
+        # Refuse changes to the previously established alignment settings.
         assert args.days >= 7, "At least seven consecutive news days required"
         report = root / "reports" / "news_alignment" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         report.mkdir(parents=True, exist_ok=False)
