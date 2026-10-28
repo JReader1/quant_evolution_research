@@ -12,7 +12,7 @@ The main experiment is long-only: choose one stock from each of 11 sectors, hold
 - **Execution:** signals use information through the close; trades are simulated at the next session's adjusted open. The backtest charges 5 basis points per traded dollar.
 - **Evaluation:** candidates are compared against five-day momentum and equal-weight controls. The search uses historical folds; the secondary audit and later 2026 evaluation are descriptive, not pristine blind tests.
 
-The central code is in [`src/quantlab/evolution/arena.py`](src/quantlab/evolution/arena.py) (portfolio simulator) and [`src/quantlab/evolution/championship.py`](src/quantlab/evolution/championship.py) (candidate search and scoring). [`run_evolution.py`](run_evolution.py) is the entry point.
+The core model lives in [`arena.py`](src/quantlab/evolution/arena.py) (portfolio accounting) and [`championship.py`](src/quantlab/evolution/championship.py) (search and scoring). The optional research modules are [`market_analogs.py`](src/quantlab/evolution/market_analogs.py), [`macro_regimes.py`](src/quantlab/evolution/macro_regimes.py), and [`frozen_2026.py`](src/quantlab/evolution/frozen_2026.py).
 
 ## What I found
 
@@ -20,11 +20,11 @@ The evolutionary search selected `m10_skip0_vol1_risk1`: 10-session momentum, no
 
 In a **later-period 2026 simulation** using nine completed holding periods (last exit: October 6), the results were:
 
-| Portfolio | Simulated net return | Maximum drawdown |
-| --- | ---: | ---: |
-| Evolutionary candidate | +18.90% | -6.63% |
-| Original five-day momentum | +16.75% | -6.75% |
-| Equal-weight 33 stocks | +15.27% | -5.25% |
+| Portfolio | Simulated net return |
+| --- | ---: |
+| Evolutionary candidate | +18.90% |
+| Original five-day momentum | +16.75% |
+| Equal-weight 33 stocks | +15.27% |
 
 These are outputs from local research runs, not verified live returns. The selected candidate was **not approved for live trading**. Earlier secondary-audit results did not consistently clear the benchmark hurdle, and the 2026 data is not a fully untouched holdout.
 
@@ -48,6 +48,13 @@ python run_evolution.py --population 16 --generations 5 --seed 41
 The second command builds the local price cache in `data/raw_2018_2025/` using Yahoo Finance via `yfinance`. The repository intentionally excludes downloaded market and news data; Yahoo's adjusted historical data can be revised, so reproducing an older run byte-for-byte is not guaranteed. The championship writes reports under `reports/evolution_championships/`, which is also excluded from version control.
 
 The news and analog experiments require additional cached datasets and are not part of the core championship command.
+
+To run the synthetic-price tests without downloading market data:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
 
 ## What still needs work
 
