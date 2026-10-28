@@ -275,7 +275,6 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
         / "french_market_daily.csv"
     )
 
-    # Download once, then reuse the saved historical returns.
     if not cache.exists():
 
         url = (
@@ -352,7 +351,6 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
             columns=["Date", "Market_Return"]
         ).to_csv(cache, index=False)
 
-    # Load the cached daily returns.
     market = pd.read_csv(
         cache,
         parse_dates=["Date"]
@@ -379,7 +377,6 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
     if ((r <= -1) | (~np.isfinite(r))).any():
         raise ValueError("Invalid historical returns")
 
-    # Construct a market wealth index for calculations.
     wealth = (1 + r).cumprod()
 
     features = pd.DataFrame(index=r.index)
@@ -400,8 +397,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
 
     current = features.iloc[-1]
 
-    # Keep analogs at least one year before the
-    # evaluated date to prevent recent overlap.
+    # Limit neighbors to dates at least a year before the decision date.
     cutoff = (
         features.index[-1]
         - pd.Timedelta(days=365)
@@ -414,7 +410,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
     if candidates.empty:
         raise ValueError("No eligible historical analogs")
 
-    # Fixed scales make different measurements comparable.
+    # Scales normalize features with different magnitudes.
     scales = pd.Series({
         "r20": 0.10,
         "r60": 0.18,
@@ -428,8 +424,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
         ).sum(axis=1)
     )
 
-    # Avoid reporting nearly identical overlapping
-    # dates as separate historical analogs.
+    # Separate neighbors to avoid counting the same episode repeatedly.
     chosen = []
 
     for date in distance.sort_values().index:
@@ -452,10 +447,8 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
     )
 
 
-    # LESSON 57: What happened after each analog?
 
-    # Return over the following 21 trading sessions.
-    # These are historical outcomes, not current forecasts.
+    # Outcomes are measured over the next 21 trading sessions.
     future_21d = (
         wealth.shift(-21) / wealth - 1
     )
@@ -464,8 +457,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
         future_21d.reindex(result.index)
     )
 
-    # Every chosen analog must have a fully observed
-    # future period within the historical data.
+    # Require the full subsequent return for each selected neighbor.
     if result["next_21d_return"].isna().any():
         raise ValueError(
             "Historical analog has an unknown future outcome"
@@ -515,10 +507,9 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
 
         print("\nHISTORICAL ANALOG WALK-FORWARD TEST")
 
-        # Known 21-session outcomes for historical dates.
         future = wealth.shift(-21) / wealth - 1
 
-        # Evaluate approximately once every 21 sessions.
+        # Sample one test date per approximate holding period.
         test_dates = features.loc[
             "2018-01-01":"2024-12-31"
         ].index[::21]
@@ -532,8 +523,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
             if pd.isna(actual):
                 continue
 
-            # One-year gap ensures that the candidate
-            # analogs and their future returns are known.
+            # Keep training neighbors and their subsequent outcomes in the past.
             eligible = features.loc[
                 :test_date - pd.Timedelta(days=365)
             ]
@@ -569,8 +559,7 @@ def preview_market_analogs(project_root, as_of="2025-12-31", n=5, backtest=False
             if analog_outcomes.isna().any():
                 continue
 
-            # Simple benchmark: mean of all earlier
-            # eligible 21-session returns.
+            # Compare against the unconditional historical mean.
             historical_outcomes = (
                 future.reindex(eligible.index).dropna()
             )
@@ -663,7 +652,6 @@ def evaluate_frozen_2026(project_root):
             "Historical cache must end on 2025-12-31"
         )
 
-    # Download only if the 2026 cache is absent.
     if not cache.exists():
 
         import yfinance as yf
@@ -717,7 +705,6 @@ def evaluate_frozen_2026(project_root):
 
         print("Using preserved 2026 price data")
 
-    # Validate the complete cached dataset.
     panel = pd.read_csv(
         cache,
         parse_dates=["Date"]
@@ -748,10 +735,8 @@ def evaluate_frozen_2026(project_root):
         raise ValueError("Invalid stock prices")
 
 
-    # Extend the original market panel IN MEMORY.
-    # The original historical CSV files are unchanged.
+    # Extend only the in-memory price panel; preserve the original files.
 
-    # Create writable copies of the price arrays.
     arena.opens = arena.opens.copy()
     arena.closes = arena.closes.copy()
 
@@ -791,8 +776,7 @@ def evaluate_frozen_2026(project_root):
                 f"Trading calendar mismatch: {ticker}"
             )
 
-        # Reconcile adjusted-price differences
-        # between the older and newer downloads.
+        # Align newer adjusted prices to the old cache on the overlap date.
         scale = (
                 stock.loc[anchor, "Close"]
                 / arena.closes[-1, j]
@@ -839,8 +823,7 @@ def evaluate_frozen_2026(project_root):
     arena._score_cache.clear()
     arena._result_cache.clear()
 
-    # FROZEN STRATEGIES: Do not optimize these
-    # based on their subsequent 2026 performance.
+    # Fixed candidates; the 2026 sample is an evaluation, not a search.
     champion = Genome(
         lookback=10,
         skip=0,
@@ -883,8 +866,7 @@ def evaluate_frozen_2026(project_root):
             f"\nLast exit: {result['last_exit']}"
         )
 
-    # EXHIBITION ONLY: fixed price-analog risk overlay.
-    # The original champion remains unchanged.
+    # Evaluate the analog risk overlay without changing the selected strategy.
     french_path = (
         root / "data" / "reference" / "french_market_daily.csv"
     )
@@ -951,8 +933,7 @@ def evaluate_frozen_2026(project_root):
 
         signal_date = arena.calendar[si]
 
-        # Use the PREVIOUS market observation,
-        # never the observation on the signal date.
+        # Use the previous factor date; same-day factor data is not assumed available.
         pos = (
             features.index.searchsorted(
                 signal_date, side="left"
@@ -1123,7 +1104,6 @@ def preview_macro_regimes(project_root):
 
         cpi = tables["CPIAUCNS"].sort_values("Date")
 
-        # Annual inflation using monthly CPI observations.
         cpi["inflation_yoy"] = (
             cpi["CPIAUCNS"].pct_change(12) * 100
         )
@@ -1136,8 +1116,7 @@ def preview_macro_regimes(project_root):
 
         macro = macro.dropna().sort_values("Date")
 
-        # Conservative assumed information delay:
-        # 45 calendar days after the observation month ends.
+        # Approximate reporting lag; revised FRED data are not point-in-time vintages.
         macro["usable_from"] = (
             macro["Date"]
             + pd.offsets.MonthEnd(0)
@@ -1264,8 +1243,7 @@ def compare_macro_analogs(project_root):
         .sort_index()
     )
 
-    # Fixed feature scales. We are not tuning them
-    # based on the evaluation results.
+    # Feature scales were fixed before comparing these variants.
     scales = pd.Series({
         "r20": 0.10,
         "r60": 0.18,
@@ -1321,7 +1299,6 @@ def compare_macro_analogs(project_root):
 
         return float(outcomes.mean())
 
-    # Both models use identical evaluation dates.
     test_dates = combined.loc[
         "2018-01-01":"2024-12-31"
     ].index[::21]
@@ -1330,8 +1307,7 @@ def compare_macro_analogs(project_root):
 
     for test_date in test_dates:
 
-        # A full year separates each test date
-        # from its eligible historical analogs.
+        # Only compare to neighbors with known subsequent outcomes.
         cutoff = test_date - pd.Timedelta(days=365)
 
         eligible = combined.loc[:cutoff]
@@ -1461,15 +1437,13 @@ def compare_macro_analogs(project_root):
 
 
 
-    # EXPERIMENTAL ANALOG EXHIBITION
-    # Does not modify the evolutionary championship.
+    # These exposure rules are exploratory; they do not select a champion.
 
     print("\nHISTORICAL ANALOG EXHIBITION MATCH")
 
     actual = comparison["Actual"].to_numpy(dtype=float)
 
-    # Reduce exposure when the analog forecast
-    # predicts a negative 21-session market return.
+    # Cut market exposure to 75% when the analog mean is negative.
     analog_exposure = np.where(
         comparison["Price_Only"].to_numpy() < 0,
         0.75,
@@ -1477,8 +1451,7 @@ def compare_macro_analogs(project_root):
     )
 
 
-    # Compare against constant exposure equal
-    # to the analog strategy's average exposure.
+    # Match the average invested fraction to isolate timing effects.
     matched_exposure = float(analog_exposure.mean())
 
     strategies = {
