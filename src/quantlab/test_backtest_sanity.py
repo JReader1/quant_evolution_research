@@ -92,7 +92,7 @@ check_case("Long stocks rise 10%", 1.1, 1.0, 0, 1.05)
 check_case("Short stocks rise 10%", 1.0, 1.1, 0, 0.95)
 
 
-# Test consecutive cycles with unchanged selections
+# Unchanged positions should not incur unnecessary turnover.
 prices, panel, dates = make_synthetic_data(n_days=12)
 
 second_cycle = panel.copy()
@@ -110,8 +110,6 @@ results = backtest_with_shares(
 assert len(results) == 2
 assert abs(results["Ending_Equity"].iloc[-1] - 1.0) < 1e-10
 
-# One initial entry and one final exit.
-# No unnecessary trading at the intermediate rebalance.
 assert abs(results["Traded_Notional"].sum() - 2.0) < 1e-10
 
 print("PASS: Unchanged positions are retained")
