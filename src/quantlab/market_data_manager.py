@@ -18,7 +18,6 @@ MARKET_DIR = ROOT / "data" / "market_snapshots"
 
 def update_sample_market_data(per_sector=1):
 
-    # STEP 1: Find the latest preserved universe
     snapshots = sorted(
         UNIVERSE_DIR.glob("*_universe.csv")
     )
@@ -40,14 +39,12 @@ def update_sample_market_data(per_sector=1):
     if universe["symbol"].duplicated().any():
         raise ValueError("Duplicate stock symbols")
 
-    # STEP 2: Select a reproducible audit sample
     sample = (
         universe.sort_values(["sector", "symbol"])
         .groupby("sector", sort=True)
         .head(per_sector)
     )
 
-    # STEP 3: Create a unique data snapshot
     captured = datetime.now(timezone.utc)
 
     run_id = captured.strftime(
@@ -61,7 +58,7 @@ def update_sample_market_data(per_sector=1):
         exist_ok=False
     )
 
-    # Use completed previous-day candles only.
+    # Reject unfinished daily candles.
     local_today = datetime.now(
         ZoneInfo("America/New_York")
     ).date()
@@ -70,13 +67,11 @@ def update_sample_market_data(per_sector=1):
 
     records = []
 
-    # STEP 4: Download and validate each ticker
     for _, row in sample.iterrows():
 
         symbol = str(row["symbol"])
         sector = str(row["sector"])
 
-        # Yahoo's notation for share classes
         provider_symbol = symbol.replace(".", "-")
 
         print(f"Fetching {symbol}...")
@@ -118,8 +113,6 @@ def update_sample_market_data(per_sector=1):
 
             prices.index = prices.index.normalize()
 
-            # Exclude any current-day candle, which
-            # may not represent a completed session.
             prices = prices.loc[
                 prices.index < cutoff
             ].sort_index()
@@ -188,7 +181,6 @@ def update_sample_market_data(per_sector=1):
 
         records.append(result)
 
-    # STEP 5: Save every outcome
     audit = pd.DataFrame(records)
 
     audit.to_csv(
