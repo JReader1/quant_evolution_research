@@ -1,193 +1,313 @@
 # Evolutionary Equity Research
 
-**Python · Quantitative research · Cross-sectional momentum · Evolutionary optimization · Backtesting**
 
-**Research question:** Does an evolutionary search find sector-balanced equity momentum rules that outperform simpler, comparably implemented strategies—and does any apparent improvement survive careful evaluation?
 
-I built a Python research framework to investigate that question. It combines equity data ingestion, momentum-based stock selection, an evolutionary parameter search, transaction-cost-aware portfolio simulation, and explicit checks against benchmark strategies. I also document two unsuccessful extensions: historical market analogs and geopolitical news signals.
+Python | Quantitative research | Cross-sectional momentum | Evolutionary optimization | Backtesting
 
-**Project status:** Research prototype. Historical simulations only; no live trading, broker integration, or demonstrated predictive edge.
 
-## Research design at a glance
 
-| Component | Implementation |
-| --- | --- |
-| Equity universe | 33 retrospectively selected U.S. stocks, three in each of 11 sectors |
-| Portfolio construction | Select the highest-scoring stock in each sector; 11 equally weighted positions |
-| Signal | Momentum, optionally adjusted for recent returns and realized volatility |
-| Search | Seeded evolutionary search using elitism, mutation, and crossover |
-| Target exposure | 75% or 100% equities; remaining capital held as unremunerated cash |
-| Rebalancing | Every 21 trading sessions |
-| Execution assumption | Observe signals at a session's close; trade at the next adjusted open |
-| Trading costs | Default 5 basis points per dollar traded |
-| Controls | Risk-matched five-day momentum (same sector-selection rules), plus equal-weight ownership of all 33 stocks |
-| Research windows | Search on 2019–2020 and 2021–2022; descriptive secondary audit on 2023–2024 |
+Is there an advantage to using an evolutionary search to create sector balanced equity momentum strategies? Can we determine if there is truly an advantage?
 
-The 33-stock sample is a deliberately manageable research universe, **not** a historical reconstruction of a point-in-time investable index. Its retrospective selection introduces substantial survivorship and selection bias.
 
-## Signal and portfolio construction
 
-For stock `i` and signal date `t`, the model computes:
+I have developed a research framework. It loads equity data, creates a momentum-based stock screening signal, performs an evolutionary search, accounts for transaction costs and compares to benchmark strategies. I have also included 2 unsuccessful attempts at improving the research.
 
-```text
-momentum(i,t) = Close(i,t-skip) / Close(i,t-lookback) - 1
-score(i,t)    = momentum(i,t) /
-                max(volatility20(i,t) * sqrt(21), 0.00001) ^ volatility_penalty
-```
+The research has been developed as a prototype. The research is performed using historical simulation only, and hasn’t been deployed with a broker.
 
-`volatility20` is the standard deviation of the previous 20 daily close-to-close returns. A volatility penalty of zero leaves the ranking as unadjusted momentum. The strategy selects **one stock per sector** using the highest score, then allocates equally across the 11 names. Target exposure is either 75% or 100%; the remainder stays in cash without modeled interest.
+## Overview
 
-At each rebalance, the simulator uses information available through the signal close, enters at the following adjusted open, and holds through 21 trading sessions. It simulates portfolio value, buys and sells, and a proportional fee on the dollar amount traded. Trades assume fractional shares, with no explicit spread or market-impact model.
 
-### Evolutionary search space
 
-Each candidate (a `Genome` in the code) has four parameters:
+| Component | Description |
 
-| Parameter | Allowed values |
-| --- | --- |
-| Momentum lookback | 5, 10, 20, 40, 63, or 126 sessions |
-| Skip period | 0, 5, or 21 sessions, strictly less than the lookback |
-| Volatility penalty exponent | 0, 0.5, or 1 |
-| Equity exposure | 0.75 or 1.00 |
+|----------|-------------|
 
-The search begins with the standard five-day momentum candidate and randomly sampled valid candidates. In each generation, candidates are ranked by the fitness function below; the strongest candidates survive, while fresh random candidates and offspring produced by mutation or crossover populate the next generation. A fixed seed makes the *search procedure* repeatable for an unchanged price cache and software environment.
+| Universe of stocks | 33 stocks with 3 from each of the 11 sectors (retrospectively selected). |
 
-The documented example uses **16 candidates per generation, five generations, and seed 41**. This is a modest parameter search, not evidence that a globally optimal strategy has been found.
+| Strategy | Select the top stock for each sector to create a portfolio with 11 stocks equally weighted. |
 
-## Fitness and comparisons
+| Signal | Momentum based signal. May be adjusted for recent returns and volatility. |
 
-The implementation evaluates each candidate in two separate training windows: **2019–2020** and **2021–2022**. For every window, it compares after-cost portfolio returns with:
+| Search | Evolutionary search using elitism, mutation and crossover. |
 
-1. An equal-weight 33-stock benchmark.
-2. A five-day momentum strategy that uses the **same one-stock-per-sector portfolio construction and the candidate's target exposure**.
+| Exposure | Either 75% or 100% equity exposure. Remaining investment in cash (no interest). |
 
-The second comparison is important: it isolates the effect of the candidate's ranking parameters more directly than comparing an 11-stock selection portfolio only against all 33 stocks.
+| Rebalance Frequency | Every 21 trading sessions. |
 
-The code computes the following quantities in **percentage points** for each training fold `f`:
+| Trading Assumptions | Signal observed at the end of the session, trade executed at next adjusted open. |
 
-```text
-edge_f = min(
-    100 * (candidate_return_f - equal_weight_33_return_f),
-    100 * (candidate_return_f - risk_matched_5day_return_f)
-)
+| Costs | 5 bps by default. |
 
-extra_drawdown_f = 100 * max(
-    0, risk_matched_5day_max_drawdown_f - candidate_max_drawdown_f
-)
+| Benchmark Strategies | Risk matched 5 day momentum strategy with same sector selection. Equal weighting of all 33 stocks. |
 
-fitness = mean(edge)
-          - 0.5 * population_std(edge)
-          - 0.5 * max(0, -min(edge))
-          - 0.5 * mean(extra_drawdown)
-          - 0.25 * indicator(volatility_penalty > 0)
-          - 0.25 * indicator(skip > 0)
-```
+| Search Period | 2019-2020, 2021-2022. Descriptive secondary audit period: 2023-2024.
 
-Max drawdown is stored as a negative return, so the drawdown term penalizes a candidate that falls further than its risk-matched momentum comparator. The score rewards returns relative to **both** controls while penalizing inconsistency, a weak fold, excess drawdown, and added signal complexity. The weights are research design choices, **not statistically estimated measures of significance**.
 
-Selection and repeated optimization on these windows mean the resulting champion's fitness is **in-sample**. The distinct 2023–2024 audit is descriptive, not a clean blind holdout: that period was examined during development.
 
-## Results: what is and is not established
+There are 33 stocks in the example. This is a deliberately small set of stocks to keep the research simple. This means the universe has significant survivorship and selection bias.
 
-The repository's reproducible deliverable is the **research procedure**, rather than a verified profitable trading strategy.
 
-Running the championship on a complete local price cache generates candidate rankings, fold-level scores, a selected champion, a 2023–2024 secondary audit, and simulated trades. The performance record for each evaluation includes net return, maximum drawdown, annualized volatility, number of holding periods, and total fees.
 
-**I am intentionally not presenting a headline backtest return here.** An earlier local exploratory comparison reported attractive 2026 performance, but its original price inputs and output report are not committed, and the exact figures have not been reproduced from the published artifacts. Repeating them as independently verifiable evidence would overstate what the repository demonstrates.
+## Signal Creation and Strategy
 
-A separate [fixed-strategy 2026 experiment](src/quantlab/evolution/frozen_2026.py) exists, but 2026 was also investigated during development. It should not be described as a previously untouched out-of-sample test.
 
-**Conclusion from the evidence so far:** This framework demonstrates a quantitative research process and produces testable hypotheses. It does **not** establish a persistent excess return, statistical significance, or readiness for live trading.
 
-## Experiments that did not improve the strategy
+For stock i and date t:
 
-### Historical market analogs
 
-I explored finding past market periods with similar recent returns, volatility, and drawdowns, including exploratory inflation and Treasury-yield inputs. The analogy-based forecasts did not reliably beat a simple historical-mean forecast. Using analogs to reduce equity exposure in difficult conditions also failed to improve the later comparison enough to justify inclusion.
 
-### Geopolitical news risk signals
+momentum(i,t) = (Close(i, t - skip) / Close(i, t - lookback)) - 1
 
-I experimented with daily risk features derived from GDELT event data and reduced portfolio exposure when those signals suggested elevated risk. In a limited 2022 comparison, this approach did not outperform a simpler constant lower-exposure control.
+score(i,t) = momentum(i,t) / (max(volatility20(i,t) sqrt(21), 0.00001) ^ volatility_penalty)
 
-I could not fully establish whether all historical news information would have been available to an investor at the simulated decision time. **News features are therefore excluded from the main evolutionary search.** These negative results and timing concerns are part of the research, not omitted experiments.
 
-## Validation timeline
 
-| Data period | Role | Validation status |
-| --- | --- | --- |
-| 2018 | Historical context and indicator lookback | Not a scored search fold |
-| 2019–2020 | Evolutionary fitness evaluation | In-sample / optimized repeatedly |
-| 2021–2022 | Evolutionary fitness evaluation | In-sample / optimized repeatedly |
-| 2023–2024 | Secondary historical audit | Development-inspected; **not blind** |
-| 2025 | Included in the 2018–2025 price cache | Not a default championship scoring window; previously inspected in development |
-| 2026 | Separate fixed-strategy explorations | Development-inspected; **not an untouched holdout** |
+Where volatility20 is the standard deviation of the last 20 daily close-to-close returns. If volatility_penalty is zero, the ranking will be raw momentum. The strategy selects one stock from each sector with the highest score creating a portfolio of 11 equally weighted stocks. Either 75% or 100% equity exposure is created. The rest is invested in cash with no interest.
 
-A later date is not automatically an out-of-sample test. I would need to pre-register the strategy, evaluation criteria, and an untouched observation window before making a prospective performance claim.
 
-## Reproduce the research
 
-Requires **Python 3.11+**. Run the following from the repository root.
+At rebalancing, the signal is known and the portfolio is invested at the next adjusted open. The portfolio value is simulated with 21 trading sessions. The trades are simulated with a proportional fee. Fractional fills and no spread or market impact modelling is assumed.
 
-**1. Install the package and run tests**
+
+
+## Search Parameters
+
+
+
+Each candidate (or Genome) has 4 parameters:
+
+
+
+| Parameter | Options |
+
+|----------|---------|
+
+| Lookback | 5, 10, 20, 40, 63, 126 |
+
+| Skip | 0, 5, 21 (must be less than lookback). |
+
+| Volatility Penalty Exponent | 0, 0.5, 1 |
+
+| Exposure | 0.75, 1.00 |
+
+
+
+The search starts with a base candidate with standard 5-day momentum. Other valid candidates are randomly sampled. Each generation the candidates are sorted by the fitness function. The best candidates are retained and new randomly sampled candidates along with mutated and crossed-over candidates make up the new generation. A fixed seed is used to ensure the search can be replicated with no changes to the price cache and software.
+
+
+
+The example has 16 candidates per generation with 5 generations and seed 41. This is a small parameter search.
+
+
+
+## Fitness
+
+
+
+Each candidate is evaluated on 2 training periods (2019-2020 and 2021-2022). The returns from the portfolio with costs applied are compared to:
+
+
+
+1. An equally weighted portfolio of all 33 stocks.
+
+2. A 5-day momentum strategy with the same portfolio creation (one stock per sector) and target exposure.
+
+
+
+The second comparison gives a more direct comparison of the ranking parameters.
+
+
+
+The code calculates the following for each training fold f (in percentage points):
+
+
+
+edge_f = min(100 (candidate_return_f - equal_weight_33_return_f), 100 (candidate_return_f - risk_matched_5day_return_f))
+
+
+
+extra_drawdown_f = 100 max(0, risk_matched_5day_max_drawdown_f - candidate_max_drawdown_f)
+
+
+
+fitness = mean(edge) - 0.5 population_std(edge) - 0.5 max(0, -min(edge)) - 0.5 mean(extra_drawdown) - 0.25 indicator(volatility_penalty > 0) - 0.25 indicator(skip > 0)
+
+
+
+Max drawdown is stored as a negative return so the drawdown penalty ensures that if the candidate goes further down than the risk matched momentum comparison it will be penalised. The score is designed to give a higher score for higher returns vs both controls. It also penalises inconsistent returns. The weights have been chosen as part of the research design.
+
+
+
+As the champion has been selected and optimised on these periods the fitness will be in-sample. There is a separate descriptive audit period (2023-2024).
+
+## What do we know?
+
+
+
+The deliverable from this repository is the research process.
+
+
+
+When running the championship on a full local price cache, the candidates are ranked and scores calculated for each fold. A champion is selected and the secondary audit (2023-2024) is completed. The trades are simulated. Performance statistics are recorded for each evaluation including net return, max drawdown, volatility (annualised), number of periods held and total fees.
+
+
+
+I’m deliberately not showing the backtest return. An exploratory comparison was completed locally previously showing good performance in 2026. However, the original inputs aren’t fixed and neither is the output report. The exact figures haven’t been replicated from the published artifacts and wouldn’t be a fair representation of what is shown in this repository.
+
+
+
+There is a separate [fixed strategy experiment for 2026](src/quantlab/evolution/frozen_2026.py). 2026 was also explored during development.
+
+
+
+From the evidence we can say this shows a quantitative research process and hypotheses that can be tested. We can’t say there is a sustainable edge, statistically significant or ready for deployment.
+
+
+
+## Unsuccessful attempts to improve the strategy
+
+
+
+### Market Analogy
+
+
+
+I have explored finding similar market periods in the past with similar recent returns, volatility and drawdowns. Some exploratory research was done using inflation and treasury yields. The analogy forecasts weren’t consistently better than a simple mean forecast. Attempting to reduce equity exposure using the analogy didn’t improve performance sufficiently for the later comparison.
+
+
+
+### Geopolitical Risk Signals
+
+
+
+I have experimented using daily risk signals based on GDELT events. When the signal indicated high risk, less exposure was taken. This didn’t outperform a simple lower exposure control in a limited 2022 comparison.
+
+
+
+It couldn’t be fully proven that all the news information from history would be available to the investor at the time of decision making. So news features aren’t included in the main evolutionary search.
+
+
+
+## Validation Periods
+
+
+
+| Period | Purpose | Validated |
+
+|-------|--------|----------|
+
+| 2018 | Historical and indicator lookback | No (not scored) |
+
+| 2019-2020 | Evolutionary fitness | Yes (in-sample, optimised) |
+
+| 2021-2022 | Evolutionary fitness | Yes (in-sample, optimised) |
+
+| 2023-2024 | Descriptive secondary audit | Yes (explored during development) |
+
+| 2025 | Part of 2018-2025 price cache | No (not default scoring period, explored during development) |
+
+| 2026 | Fixed strategy explorations | Yes (explored during development).
+
+Just because it is later doesn’t mean it is out of sample. To claim performance I would need to pre-register the strategy, criteria and an unseen observation period.
+
+
+
+## Replicating the Research
+
+You’ll need Python 3.11+.
+
+Within the root of the repository:
+
+Install package and run tests.
 
 ```bash
+
 python -m pip install -e ".[dev]"
+
 python -m pytest -q
+
 ```
 
-The test suite uses synthetic price data and does not require stock downloads. The repository includes GitHub Actions test configuration.
+The tests use synthetic price data and won’t require downloading any stocks. The tests are configured in GitHub Actions.
 
-**2. Download and cache historical prices**
+Download price data:
 
 ```bash
+
 python -c "from quantlab.data import download_stock_data; download_stock_data('2026-01-01')"
+
 ```
 
-This downloads auto-adjusted daily prices via `yfinance` from January 2018 through the end of 2025, storing one CSV per ticker under `data/raw_2018_2025/`. Files already present in the cache are reused rather than silently replaced.
+This will download the auto-adjusted daily prices from 2018 using `yfinance`. The prices will be downloaded from Jan 2018 until the end of 2025. One CSV will be created per ticker in the `data/raw_2018_2025/` directory. If a file already exists it will be reused.
 
-**3. Run the evolutionary championship**
+Run the evolutionary championship:
 
 ```bash
+
 python run_evolution.py --population 16 --generations 5 --seed 41 --cost-bps 5
+
 ```
 
-The run creates a timestamped folder under `reports/evolution_championships/` containing:
+This will create a folder with a timestamp in the `reports/evolution_championships/` directory. Inside the folder you’ll find:
 
-| Output | Contents |
-| --- | --- |
-| `summary.json` | Configuration, winning candidate, search-fold metrics, secondary audit, and SHA-256 hashes of input price files |
-| `all_candidates.csv` | Unique candidate leaderboard and fitness |
-| `generations.csv` | Population evaluated in each generation |
-| `fitness_folds.csv` | Fold-by-fold returns and fitness components |
-| `champion_audit_trades.csv` | Dates, selected stocks, and entry fees for the secondary audit |
-| `research_report.md` | Compact summary of the selected candidate and limitations |
+| File | Description |
 
-**Reproducibility boundary:** Code and synthetic tests are versioned, but historical raw market data and generated reports are not. A fixed random seed alone cannot guarantee identical numbers if Yahoo Finance revises adjusted prices or if dependencies change. The file hashes document which input CSVs were used in an individual local run.
+|------|-------------|
 
-## Repository map
+| summary.json | Summary of the configuration, champion candidate, metrics for each search fold, secondary audit and SHA-256 hash of the price files used. |
 
-| Path | Purpose |
-| --- | --- |
-| [`run_evolution.py`](run_evolution.py) | Championship command-line entry point |
-| [`evolution/arena.py`](src/quantlab/evolution/arena.py) | Momentum scores, sector selection, portfolio accounting, fees, and metrics |
-| [`evolution/championship.py`](src/quantlab/evolution/championship.py) | Search space, selection, mutation, crossover, fitness, and reports |
-| [`data.py`](src/quantlab/data.py) | Download and local price-cache management |
-| [`universe.py`](src/quantlab/universe.py) | Fixed stock universe and sector mapping |
-| [`evolution/frozen_2026.py`](src/quantlab/evolution/frozen_2026.py) | Later fixed-strategy exploration |
-| [`evolution/market_analogs.py`](src/quantlab/evolution/market_analogs.py) and [`macro_regimes.py`](src/quantlab/evolution/macro_regimes.py) | Historical market analogue research |
-| [`news/`](src/quantlab/news) | GDELT-related exploratory news research |
-| [`tests/`](tests) | Synthetic-data tests for timing, costs, risk, and end-to-end behavior |
+| all_candidates.csv | Unique list of candidates with their rankings and fitness. |
 
-## Limitations and next steps
+| generations.csv | List of populations evaluated for each generation. |
 
-The most consequential limitation is **survivorship and selection bias**: the 33 stocks were selected with hindsight. A point-in-time universe that includes historically eligible stocks and delistings is needed before taking strategy performance seriously.
+| fitness_folds.csv | Returns and fitness components for each fold. |
 
-Other important limitations are repeated in-sample search, development inspection of later windows, adjusted-price execution assumptions, fractional fills, simplistic transaction costs, and uncertain point-in-time availability of external data. The existing reports include volatility and drawdown but **do not yet supply a complete turnover analysis, Sharpe ratio, or statistical uncertainty estimates**. None should be inferred from a return comparison alone.
+| champion_audit_trades.csv | Dates, stocks selected and entry fees for the secondary audit. |
 
-The next research priorities are:
+| research_report.md | Summary of the chosen candidate and limitations.
 
-1. Reconstruct a point-in-time eligible universe and preserve a versioned data snapshot.
-2. Freeze the selection procedure and evaluation metrics before observing a new prospective period.
-3. Add matched comparisons with Sharpe ratio, turnover, exposure, and uncertainty estimates, with more realistic execution assumptions.
+Note: The code is version controlled and the tests use synthetic data. The raw market data and reports aren’t version controlled. Even with a fixed random seed, the numbers may not be identical due to changes in the adjusted prices from Yahoo Finance and changes in dependencies. The hash will show which CSV files were used for this run.
 
-The central lesson is that **finding an appealing historical strategy is much easier than establishing an investable edge**. This project is an exercise in building—and critically evaluating—the research process.
+## File Structure
+
+| File | Description |
+
+|-----|-------------|
+
+| [`run_evolution.py`](run_evolution.py) | Command line to run the championship. |
+
+| [`arena.py`](src/quantlab/evolution/arena.py) | Momentum ranking, sector selection, portfolio, fees and metrics. |
+
+| [`championship.py`](src/quantlab/evolution/championship.py) | Search parameters, selection, mutation, crossover, fitness and reports. |
+
+| [`data.py`](src/quantlab/data.py) | Download price data and manage local cache. |
+
+| [`universe.py`](src/quantlab/universe.py) | Static universe of stocks and sectors. |
+
+| [`frozen_2026.py`](src/quantlab/evolution/frozen_2026.py) | Further fixed strategy exploration. |
+
+| [`market_analogs.py`](src/quantlab/evolution/market_analogs.py), [`macro_regimes.py`](src/quantlab/evolution/macro_regimes.py) | Market analogy research. |
+
+| [`news/`](src/quantlab/news) | News research using GDELT. |
+
+| [`tests/`](tests) | Tests using synthetic data to validate timing, costs, risk and end-to-end.
+
+## Limitations and Next Steps
+
+The most impactful limitation is that the 33 stocks have been retrospectively selected meaning there is survivorship and selection bias. A time-point universe with stocks that would have been eligible and delistings would need to be created before we take the strategy performance seriously.
+
+Other key limitations are that the search was in-sample, the later periods were explored during development, trades assumed adjusted prices, fractional fills, simple costs and there is uncertainty around whether external data would have been available at the time. The reports do include volatility and drawdown but there isn’t a full turnover analysis, Sharpe ratio or estimates of statistical uncertainty. Nothing should be inferred from just comparing the returns.
+
+Next steps for the research are:
+
+
+
+1. Reconstruct a time-point universe with eligible stocks. Ensure a versioned snapshot of the data.
+
+2. Fix the selection and evaluation process before observing a new prospective period.
+
+3. Include comparable metrics with Sharpe ratio, turnover, exposure and uncertainty estimates. Assume more realistic trading.
+
+
+
+The key takeaway is that it is much easier to find an attractive strategy in history. This has been a learning exercise to create and critically analyse the research process.
