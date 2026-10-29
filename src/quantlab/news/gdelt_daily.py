@@ -19,8 +19,7 @@ import zipfile
 import pandas as pd
 
 BASE_URL = "https://data.gdeltproject.org/events"
-# 1.0 daily event row: 58 tab-delimited columns, zero-based indices.
-# https://www.gdeltproject.org/data.html -> GDELT 1.0 data format.
+# GDELT 1.0: 58 tab-separated fields, indexed from zero.
 FIELDS = {
     1: "SQLDATE", 28: "EventRootCode", 29: "QuadClass",
     30: "GoldsteinScale", 33: "NumArticles", 34: "AvgTone",
@@ -52,7 +51,6 @@ def fetch_archive(root: Path, day: date, *, offline: bool = False,
     if path.exists():
         if not zipfile.is_zipfile(path):
             raise ValueError(f"Corrupt cached ZIP: {path}")
-        # Someone might have copied the file manually. Timestamp accordingly.
         if not metadata_path.exists():
             _write_json(metadata_path, {
                 "source_url": url, "retrieved_utc": None,
@@ -90,7 +88,6 @@ def fetch_archive(root: Path, day: date, *, offline: bool = False,
                         output.write(chunk)
             if not zipfile.is_zipfile(temp_path):
                 raise ValueError("Server did not return a ZIP archive")
-            # Ensure every downloaded ZIP passes integrity checks before caching it.
             with zipfile.ZipFile(temp_path) as zf:
                 if zf.testzip() is not None:
                     raise ValueError("Damaged ZIP archive")
@@ -138,8 +135,7 @@ def summarize_archive(path: Path, day: date) -> dict:
                 n = len(chunk)
                 total += n
                 added = chunk["DATEADDED"].str.strip()
-                # Daily export files should be date-indexed. Nonmatching rows
-                # are visible in metadata, rather than ignored or backdated.
+                # Preserve out-of-date records in validation metadata rather than backdating.
                 mismatched_added += int((added != day.strftime("%Y%m%d")).fillna(True).sum())
                 quad = pd.to_numeric(chunk["QuadClass"], errors="coerce")
                 conflict += int(quad.isin([3, 4]).sum())

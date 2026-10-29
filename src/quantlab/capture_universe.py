@@ -1,38 +1,23 @@
+"""Save a snapshot of the current constituent universe."""
 
-from quantlab.universe_manager import capture_universe
 from quantlab.universe import SECTOR_BY_TICKER
+from quantlab.universe_manager import capture_universe
 
 
-print("\nCAPTURING STOCK UNIVERSE")
+def main() -> None:
+    metadata, universe = capture_universe()
 
-metadata, universe = capture_universe()
+    original = set(SECTOR_BY_TICKER)
+    current = set(universe["symbol"])
 
-print("\nUNIVERSE SNAPSHOT")
+    print(f"Snapshot: {metadata['universe_file']}")
+    print(f"Captured: {metadata['captured_utc']}")
+    print(f"Membership date: {metadata['membership_date']}")
+    print(f"Active securities: {metadata['active_symbols']}")
+    print(f"Sectors: {metadata['sectors']}")
+    print(f"Original 33 still listed: {len(original & current)}")
+    print(f"Original names no longer listed: {sorted(original - current)}")
 
-print("Captured UTC:", metadata["captured_utc"])
-print("Membership date:", metadata["membership_date"])
-print("Active stocks:", metadata["active_symbols"])
-print("Sectors:", metadata["sectors"])
 
-print("\nSTOCKS BY SECTOR")
-
-print(
-    universe.groupby("sector")["symbol"]
-    .nunique()
-    .to_string()
-)
-
-original = set(SECTOR_BY_TICKER)
-
-active = set(universe["symbol"])
-
-print("\nOriginal 33 still members:",
-      len(original & active))
-
-print("Original stocks no longer members:",
-      sorted(original - active))
-
-print("\nSnapshot saved:")
-print(metadata["universe_file"])
-
-print("\nPASS: Universe snapshot captured")
+if __name__ == "__main__":
+    main()

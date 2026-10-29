@@ -26,7 +26,7 @@ def capture_universe():
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Download the source as it exists when requested.
+    # Snapshot the source as retrieved, not as later revised.
     request = Request(
         SOURCE_URL,
         headers={"User-Agent": "QuantResearchEducational/1.0"}
@@ -51,7 +51,6 @@ def capture_universe():
     if not required.issubset(history.columns):
         raise ValueError("Membership schema changed")
 
-    # Validate and convert historical dates.
     for column in [
         "date_added",
         "date_removed",
@@ -78,7 +77,6 @@ def capture_universe():
 
         history[column] = parsed
 
-    # Record when our system actually received the data.
     captured = datetime.now(timezone.utc)
     capture_id = captured.strftime("%Y%m%dT%H%M%S%fZ")
 
@@ -115,7 +113,7 @@ def capture_universe():
         "symbol"
     ).reset_index(drop=True)
 
-    # Preserve the exact bytes returned by the source.
+    # Retain raw source bytes for later provenance checks.
     archive_path = (
         ARCHIVE_DIR / f"{capture_id}_source.csv"
     )
@@ -123,7 +121,6 @@ def capture_universe():
     with archive_path.open("xb") as file:
         file.write(raw)
 
-    # Save the eligible universe as observed.
     universe_path = (
         OUTPUT_DIR / f"{capture_id}_universe.csv"
     )

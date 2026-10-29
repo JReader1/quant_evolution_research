@@ -46,8 +46,7 @@ TICKERS = [
 
 def download_stock_data(end_date="2025-01-01"):
 
-    # Keep the original research data separate
-    # from the new 2025 evaluation dataset.
+    # Preserve separate caches for development and later-year evaluation.
     if end_date == "2025-01-01":
         folder_name = "raw"
 
