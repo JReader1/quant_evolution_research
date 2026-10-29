@@ -4,7 +4,7 @@
 
 Can a systematic search improve a simple equity momentum strategy, and does that improvement persist outside the periods used to choose it?
 
-I built this project to investigate that question. It combines a sector-balanced stock-selection strategy, an evolutionary parameter search, and a transaction-cost-aware historical simulator. The research also includes two unsuccessful extensions—historical market analogs and geopolitical news signals—that I kept because their failures are useful evidence.
+I built this project to investigate that question. It combines a sector-balanced stock-selection strategy, an evolutionary parameter search, and a transaction-cost-aware historical simulator. The research also includes two unsuccessful extensions, historical market analogs and geopolitical news signals, that I kept because their failures are useful evidence.
 
 **Status:** Research prototype. Historical simulations only; no live trading or broker integration.
 
