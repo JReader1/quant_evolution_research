@@ -1,63 +1,91 @@
 # Evolutionary Equity Research
 
-A Python project for testing momentum-based stock selection, evolutionary parameter search, and market-risk signals. I built it to find out whether a strategy that looks good in historical data still holds up against simple alternatives.
+**Python · Quantitative research · Momentum strategies · Backtesting**
 
-The main experiment is long-only: choose one stock from each of 11 sectors, hold the basket for 21 trading sessions, then rebalance. There is no broker connection or live trading.
+Can a systematic search improve a simple equity momentum strategy, and does that improvement persist outside the periods used to choose it?
 
-## How it works
+I built this project to investigate that question. It combines a sector-balanced stock-selection strategy, an evolutionary parameter search, and a transaction-cost-aware historical simulator. The research also includes two unsuccessful extensions—historical market analogs and geopolitical news signals—that I kept because their failures are useful evidence.
 
-- **Universe:** 33 large-cap U.S. equities, three per sector. This is a retrospectively selected research universe, **not** a point-in-time S&P 500.
-- **Signals:** momentum over different lookbacks, optional skipping of recent sessions, and volatility adjustment.
-- **Search:** an evolutionary algorithm generates, crosses, and mutates strategy configurations (called `Genome` in the code).
-- **Execution:** signals use information through the close; trades are simulated at the next session's adjusted open. The backtest charges 5 basis points per traded dollar.
-- **Evaluation:** candidates are compared against five-day momentum and equal-weight controls. The search uses historical folds; the secondary audit and later 2026 evaluation are descriptive, not pristine blind tests.
+**Status:** Research prototype. Historical simulations only; no live trading or broker integration.
 
-The core model lives in [`arena.py`](src/quantlab/evolution/arena.py) (portfolio accounting) and [`championship.py`](src/quantlab/evolution/championship.py) (search and scoring). The optional research modules are [`market_analogs.py`](src/quantlab/evolution/market_analogs.py), [`macro_regimes.py`](src/quantlab/evolution/macro_regimes.py), and [`frozen_2026.py`](src/quantlab/evolution/frozen_2026.py).
+## Research design
 
-## What I found
+| Component | Implementation |
+| --- | --- |
+| Universe | 33 U.S. equities, three each from 11 sectors |
+| Portfolio | Highest-ranked stock within each sector; 11 equal-weight positions |
+| Signal | Trailing momentum, optional recent-period skip, optional volatility adjustment |
+| Search | Seeded evolutionary search with selection, mutation, and crossover |
+| Exposure | Candidate target equity exposure of 75% or 100% |
+| Rebalancing | Every 21 trading sessions |
+| Simulated execution | Signal at the close; trade at the following session's adjusted open |
+| Trading costs | Default 5 basis points per dollar traded |
+| Comparisons | Five-day momentum and equal-weight ownership of all 33 stocks |
 
-The evolutionary search selected `m10_skip0_vol1_risk1`: 10-session momentum, no skipped sessions, volatility adjustment, and full target equity exposure.
+Each candidate specifies a momentum lookback, skip period, volatility penalty, and equity exposure. The search evaluates candidates on **2019–2020** and **2021–2022** historical windows. Fitness considers benchmark-relative returns, performance instability between windows, excess drawdown, and a small complexity penalty.
 
-In a **later-period 2026 simulation** using nine completed holding periods (last exit: October 6), the results were:
+The **2023–2024** period is reported separately as a secondary audit. It is *not* an untouched out-of-sample test: I had inspected historical performance repeatedly during development.
 
-| Portfolio | Simulated net return |
+## Findings
+
+A candidate explored in this project, `m10_skip0_vol1_risk1`, uses 10-session momentum, no skip, volatility adjustment, and 100% target equity exposure.
+
+An earlier local simulation covering **nine completed holding periods in 2026** (final exit October 6) reported:
+
+| Strategy | Simulated net return |
 | --- | ---: |
 | Evolutionary candidate | +18.90% |
-| Original five-day momentum | +16.75% |
-| Equal-weight 33 stocks | +15.27% |
+| Five-day momentum baseline | +16.75% |
+| Equal-weight 33-stock baseline | +15.27% |
 
-These are outputs from local research runs, not verified live returns. The selected candidate was **not approved for live trading**. Earlier secondary-audit results did not consistently clear the benchmark hurdle, and the 2026 data is not a fully untouched holdout.
+**Interpretation:** These figures come from a prior local research run. The input price files and that run's report are not committed to this repository, so these exact numbers have **not been independently reproduced from the published code and data**. They are exploratory comparisons, not live returns or evidence of a reliable trading edge. Earlier historical audits did not consistently satisfy the strategy's benchmark hurdles, and the 2026 comparison is not a pristine blind holdout.
 
-I also tested two additions that **did not earn a place in the main strategy**:
+Two additional hypotheses were tested and **not adopted**:
 
-- **Market analogs:** matching recent price, volatility, and drawdown patterns to older market periods, then adding CPI inflation and Treasury yields. Similarity forecasts did not beat a simple historical-average return forecast. A defensive overlay looked interesting in one older broad-market simulation, but failed to improve the stock-selection strategy in the 2026 comparison.
-- **Geopolitical news:** a GDELT-based daily risk overlay. It reduced losses relative to full exposure in a short 2022 sample, but did not beat constant 75% exposure.
+- **Historical analogs:** Similarity matching using prior returns, volatility, and drawdowns, with exploratory inflation and Treasury-yield features. The analog forecasts did not consistently improve on a historical-mean forecast; a risk-reduction overlay also failed to improve the later equity-strategy comparison.
+- **GDELT news overlay:** Daily event-based geopolitical risk signals. In a short 2022 experiment, reducing exposure on elevated-risk dates did not outperform a constant lower-exposure control.
 
-Those experiments remain in the repository because unsuccessful tests are part of the research.
+The main evolutionary championship deliberately excludes historical news features because their point-in-time availability has not been established.
 
-## Run the evolutionary experiment
+## Reproducing the research
 
-Python 3.11 or newer is required.
-
-```bash
-python -m pip install -e .
-python -c "from quantlab.data import download_stock_data; download_stock_data('2026-01-01')"
-python run_evolution.py --population 16 --generations 5 --seed 41
-```
-
-The second command builds the local price cache in `data/raw_2018_2025/` using Yahoo Finance via `yfinance`. The repository intentionally excludes downloaded market and news data; Yahoo's adjusted historical data can be revised, so reproducing an older run byte-for-byte is not guaranteed. The championship writes reports under `reports/evolution_championships/`, which is also excluded from version control.
-
-The news and analog experiments require additional cached datasets and are not part of the core championship command.
-
-To run the synthetic-price tests without downloading market data:
+Requires **Python 3.11+**. From the repository root:
 
 ```bash
 python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-## What still needs work
+The tests use generated synthetic prices and do not need market downloads. GitHub Actions runs them on Linux (Python 3.11) and Windows (Python 3.13).
 
-The greatest weakness is **selection/survivorship bias**: the 33 stocks were chosen with hindsight, and failed or delisted companies are not represented. Other limitations include repeated inspection of historical periods, incomplete point-in-time provenance for news and macroeconomic features, a simplified execution/cost model, and no prospective trading track record.
+To build the historical price cache and run the evolutionary search:
 
-Next steps are to reconstruct historically eligible stock universes, harden the evaluation protocol, and test new data without changing the rules after seeing results. Until then, I treat the reported returns as exploratory.
+```bash
+python -c "from quantlab.data import download_stock_data; download_stock_data('2026-01-01')"
+python run_evolution.py --population 16 --generations 5 --seed 41 --cost-bps 5
+```
+
+The download step requests adjusted daily Yahoo Finance prices through `yfinance` for 2018–2025 and caches the 33 input files in `data/raw_2018_2025/`. Existing cached CSVs are reused. Raw datasets and generated reports are excluded from Git; data-provider revisions may change rerun results.
+
+Each championship run writes `summary.json`, fold-level fitness data, candidate rankings, simulated trades, and a Markdown report under `reports/evolution_championships/`. The summary includes SHA-256 hashes of the input files for auditability.
+
+## Code map
+
+| File | Purpose |
+| --- | --- |
+| [`run_evolution.py`](run_evolution.py) | Command-line entry point |
+| [`evolution/arena.py`](src/quantlab/evolution/arena.py) | Signals, portfolio accounting, fees, and performance |
+| [`evolution/championship.py`](src/quantlab/evolution/championship.py) | Candidate generation, fitness, and reports |
+| [`data.py`](src/quantlab/data.py) | Historical data download and cache |
+| [`evolution/frozen_2026.py`](src/quantlab/evolution/frozen_2026.py) | Later-period evaluation experiment |
+| [`evolution/market_analogs.py`](src/quantlab/evolution/market_analogs.py) and [`macro_regimes.py`](src/quantlab/evolution/macro_regimes.py) | Historical analog research |
+| [`news/`](src/quantlab/news) | GDELT collection and exploratory risk overlay |
+| [`tests/`](tests) | Synthetic-data timing, fee, risk, and end-to-end tests |
+
+## Limitations
+
+The central limitation is **selection and survivorship bias**: these 33 stocks were chosen retrospectively rather than reconstructed from historically eligible constituents. The evolutionary search repeatedly examines its training windows, and the later periods have also been inspected; none of the results should be interpreted as independent proof of generalization.
+
+The simulator assumes adjusted opening-price execution, fractional shares, and a simple transaction-cost model. Bid–ask spreads, market impact, constraints on execution, and point-in-time revisions to some external data are not fully modeled. The reported results are not a live or forward-tested track record.
+
+My next research step is a point-in-time investable universe followed by a genuinely untouched evaluation period. Until those checks are complete, I regard this as a study in **research design and backtesting**, not a validated trading strategy.
