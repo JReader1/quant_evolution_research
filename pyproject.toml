@@ -11,9 +11,6 @@ dependencies = [
     "numpy",
     "pandas",
     "yfinance",
-    "scipy",
-    "scikit-learn",
-    "matplotlib",
 ]
 
 [project.optional-dependencies]
