@@ -1,0 +1,60 @@
+name: Historical research metrics
+
+on:
+  push:
+    branches:
+      - research/reproducible-performance-metrics
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  historical-metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Validate simulator
+        run: python -m pytest -q
+      - name: Download market data
+        run: python -c "from quantlab.data import download_stock_data; download_stock_data('2026-01-01')"
+      - name: Run historical comparison (not an independent holdout)
+        run: python run_evolution.py --population 16 --generations 5 --seed 41 --cost-bps 5
+      - name: Print and preserve result
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          paths = sorted(Path('reports/evolution_championships').glob('*/summary.json'))
+          if not paths:
+              print('No historical summary produced; check earlier steps.')
+          else:
+              obj = json.loads(paths[-1].read_text())
+              print('2019-2022 search: IN-SAMPLE; 2023-2024 audit: PREVIOUSLY INSPECTED')
+              print('Inputs are Yahoo-adjusted prices and a retrospectively selected survivor universe.')
+              print('Candidate:', obj['champion']['candidate'])
+              for name, metrics in obj['secondary_audit'].items():
+                  if isinstance(metrics, dict) and 'return' in metrics:
+                      print(name, 'return', round(100*metrics['return'],2), 'percent;',
+                            'max drawdown', round(100*metrics['max_drawdown'],2), 'percent;',
+                            'annualized volatility', round(100*metrics['annualized_volatility'],2), 'percent;',
+                            'Sharpe', metrics['sharpe_ratio'])
+          PY
+      - name: Upload backtest reports and input hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-research-results
+          path: reports/evolution_championships/
+          if-no-files-found: warn
+          retention-days: 90
