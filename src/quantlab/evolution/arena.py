@@ -230,10 +230,21 @@ class HistoricalArena:
         running_peak = np.maximum.accumulate(equity)
         drawdown = float(np.min(equity / running_peak - 1))
         daily_returns = equity[1:] / equity[:-1] - 1
+        # Annualized Sharpe uses a zero risk-free rate and the opening-price
+        # equity curve, including transaction fees. Avoid misleading inf
+        # values when every observed return is identical.
+        return_std = float(np.std(daily_returns, ddof=1))
+        sharpe = (
+            float(np.mean(daily_returns) / return_std * np.sqrt(252))
+            if return_std > 1e-12 else None
+        )
         result = {
             'return': float(cash - 1.0),
             'max_drawdown': drawdown,
-            'annualized_volatility': float(np.std(daily_returns, ddof=1) * np.sqrt(252)),
+            'annualized_volatility': float(return_std * np.sqrt(252)),
+            'sharpe_ratio': sharpe,
+            'sharpe_risk_free_rate': 0.0,
+            'observations': len(daily_returns),
             'periods': len(signals),
             'total_fees': float(fees),
             'first_entry': str(self.calendar[i_start + 1].date()),

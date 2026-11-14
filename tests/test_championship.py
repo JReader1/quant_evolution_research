@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from quantlab.evolution.championship import run_championship
 from quantlab.universe import SECTOR_BY_TICKER
@@ -38,6 +39,15 @@ def test_championship_writes_a_consistent_research_report(tmp_path):
     assert saved["real_trading"] is False
     assert "NOT PROMOTED" in saved["promotion_decision"]
     assert saved["secondary_audit"]["champion"]["periods"] > 0
+    for key in ("champion", "risk_matched_five_day_baseline", "equal_weight_33"):
+        metrics = saved["secondary_audit"][key]
+        assert "sharpe_ratio" in metrics
+        assert metrics["observations"] > 0
+        assert metrics["sharpe_risk_free_rate"] == 0.0
+    audit = saved["secondary_audit"]
+    assert audit["champion_minus_risk_matched_five_day_pp"] == pytest.approx(
+        100 * (audit["champion"]["return"] - audit["risk_matched_five_day_baseline"]["return"])
+    )
 
     for filename in (
         "generations.csv",

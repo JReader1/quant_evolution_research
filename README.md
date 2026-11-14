@@ -80,7 +80,7 @@ The selected candidate's fitness is in-sample. The 2023–2024 secondary audit i
 
 The evolutionary search produces a selected candidate and historical comparisons, but these results do not establish a reliable trading advantage.
 
-With a complete local price cache, the championship ranks candidates, evaluates the selected candidate on 2023–2024, and saves simulated trades. Performance statistics include net return, maximum drawdown, annualized volatility, number of holding periods and total fees.
+With a complete local price cache, the championship ranks candidates, evaluates the selected candidate on 2023–2024, and saves simulated trades. Performance statistics include net return, maximum drawdown, annualized volatility, annualized Sharpe ratio, number of holding periods and total fees.
 
 Earlier 2026 simulations showed promising returns, but their original input price files and report were not preserved in the repository. Those exact numbers have not been reproduced from the published artifacts and are therefore not included as verified results.
 
@@ -119,6 +119,27 @@ Not all historical news observations could be confirmed as available at the simu
 | 2026 | Fixed-strategy experiments | No (also explored during development) |
 
 A later period is not automatically out of sample. A stronger performance claim would require fixing the strategy and evaluation rules before testing on genuinely unseen data.
+
+## Reproducible Performance Metrics
+
+The research branch includes a GitHub Actions workflow named **Historical research metrics**.
+It downloads the 2018–2025 adjusted daily prices, runs the regression tests, performs
+the seeded 16-candidate / 5-generation search, prints the strategy and benchmark
+performance, and archives the resulting summary, research report, candidate table,
+trade log and SHA-256 hashes of all 33 input files for 90 days.
+
+Performance measures are **net simulated return**, **maximum drawdown**,
+**annualized volatility**, and **annualized Sharpe ratio** (zero risk-free rate,
+daily simulated equity returns, 252 annual trading days). The audit includes
+the equal-weight portfolio, original five-day momentum baseline, and a five-day
+momentum baseline with the same equity exposure as the selected strategy.
+
+The 2019–2022 results are optimized *in-sample*, and the 2023–2024 audit was
+inspected during development. **Neither is an independent, prospective test.**
+The 33 names were chosen retrospectively, and a downloaded price series can be
+revised. These figures do not establish a statistically reliable trading edge.
+Results should only be quoted alongside the date of the workflow run and its
+stored data hashes; never copy numbers from synthetic-data tests.
 
 ## Replicating the Research
 
