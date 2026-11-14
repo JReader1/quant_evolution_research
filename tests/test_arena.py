@@ -30,6 +30,11 @@ def test_identical_prices_match_equal_weight_control(arena):
     benchmark = arena.evaluate(None, "2019-04-01", "2019-07-31")
     assert selected["periods"] > 0
     assert selected["return"] == pytest.approx(benchmark["return"], abs=1e-10)
+    assert "sharpe_ratio" in selected
+    assert selected["observations"] > 0
+    assert selected["sharpe_risk_free_rate"] == 0.0
+    assert selected["sharpe_ratio"] == pytest.approx(benchmark["sharpe_ratio"], abs=1e-10)
+
 
 
 def test_trades_follow_the_signal_at_next_open(arena):
